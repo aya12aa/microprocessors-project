@@ -88,6 +88,9 @@ public class instruction {
     public void setWriteResult(int writeResult) {
         this.writeResult = writeResult;
     }
+    public void setTag(String tag) {
+        this.tag = tag;
+    }
 
     @Override
     public String toString() {

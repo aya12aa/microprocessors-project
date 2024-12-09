@@ -4,6 +4,7 @@ public class loadbuffer {
     public instruction instruction;
     public boolean busy;
     public int address;
+    public int time;
 
 
     public loadbuffer(int address) {

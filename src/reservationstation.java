@@ -38,6 +38,10 @@ public class reservationstation {
         this.Qk = null;
         this.busy = false;     
     }
+    public boolean isBusy() {
+        return busy;
+    }
+    
     @Override
     public String toString() {
         return "Station{" +

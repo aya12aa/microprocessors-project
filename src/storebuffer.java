@@ -5,6 +5,7 @@ public class storebuffer {
     public int address;
     public int V;
     public String Q;
+    public int time;
 
 
     public storebuffer(int address, int V, boolean busy, String tag, String Q) {
