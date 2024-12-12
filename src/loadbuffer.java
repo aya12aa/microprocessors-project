@@ -54,9 +54,9 @@ public class loadbuffer {
     @Override
     public String toString() {
         return "loadBuffer{" +
-                "address=" + address +
+                 ", tag=" + tag +
                 ", busy=" + busy +
-                ", tag=" + tag +
+                "address=" + address +
                 '}';
     }
 }

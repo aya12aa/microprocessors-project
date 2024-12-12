@@ -10,13 +10,13 @@ public class reservationstation {
     public String tag;
 
     public reservationstation(boolean busy,String opcode, int Vj, int Vk, String Qj, String Qk, String tag) {
+        this.tag = tag;
+        this.busy = busy;
         this.opcode = opcode;
         this.Vj = Vj;
         this.Vk = Vk;
         this.Qj = Qj;
         this.Qk = Qk;
-        this.tag = tag;
-        this.busy = busy;
     }
 
     public reservationstation() {
@@ -45,15 +45,14 @@ public class reservationstation {
     @Override
     public String toString() {
         return "Station{" +
-                "opcode='" + opcode + '\'' +
+                " time=" + time +
+                ", tag=" + tag +
+                ", busy=" + busy +
+                ", opcode='" + opcode + '\'' +
                 ", Vi=" + Vj +
                 ", Vj=" + Vk +
                 ", Qi='" + Qj + '\'' +
                 ", Qj='" + Qk + '\'' +
-                ", tag=" + tag +
-                ", busy=" + busy +
-                ", time=" + time +
-              
                 '}';
     }
 

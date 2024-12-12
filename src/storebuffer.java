@@ -53,10 +53,10 @@ public class storebuffer {
     @Override
     public String toString() {
         return "storeBuffer{" +
-        "tag=" + tag +
+            "tag=" + tag +
+                ", busy=" + busy +
                 "address=" + address +
                 ", V=" + V +
-                ", busy=" + busy +
                 ", Q='" + Q + '\'' +
                 '}';
     }
