@@ -1,30 +1,29 @@
-import java.util.Scanner; 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-
+import java.util.Arrays;
+import java.util.List;
+import java.util.Scanner;
 public class tomasuloslogic {
-    private int cycle = 0;
-    // Instance variables for latency and buffer sizes
-    int addLatency, subLatency, mulLatency, divLatency, ldLatency, sdLatency,pc , BNEZLatency;  // Latency for BNEZ (Branch Not Equal Zero)
-    ;
-    int numaddBuffers, nummulBuffers, numLoadBuffers, numStoreBuffers, cacheSize;
-    boolean branch = false;
+   
+    public ArrayList<instruction> program = new ArrayList<instruction>();
+    ArrayList<instruction> issued = new ArrayList<instruction>();
+    ArrayList<instruction> executed = new ArrayList<instruction>();
+    ArrayList<instruction> toBeWritten = new ArrayList<instruction>();
 
-    // Arrays for reservation stations and buffers
+    int cycle ;
+    int ADDILatency,BNEZLatency,pc,addLatency ,subLatency ,mulLatency,divLatency,ldLatency,sdLatency,numaddBuffers,nummulBuffers,numLoadBuffers,numStoreBuffers,cacheSize ;
+  
     reservationstation[] addBuffers;
     reservationstation[] mulBuffers;
     loadbuffer[] loadBuffers;
     storebuffer[] storeBuffers;
     cache cache;
     registerfile registerFile = new registerfile();
-    // List to hold instructions
-    public ArrayList<instruction> program = new ArrayList<instruction>();
-    public ArrayList<instruction> issued = new ArrayList<instruction>();
-    public ArrayList<instruction> executed = new ArrayList<instruction>();
-    public ArrayList<instruction> toBeWritten = new ArrayList<instruction>();
-    //  read instructions from file
+    boolean branch = false;
+    ArrayList<reservationstation> toBeDeleted = new ArrayList<reservationstation>();
+
     public void readInstructions() {
         String file = "src/instructions.txt"; // File path (adjust as necessary)
         String line;
@@ -89,64 +88,105 @@ public class tomasuloslogic {
         } catch (IOException e) {
             System.out.println("Error reading file '" + file + "': " + e.getMessage());
         }
-    }
+    }   
 
-    //  take user inputs 
-    public void getUserInputs() {
+    public tomasuloslogic() {
+        // Read instructions from the file
         readInstructions();
-        try (Scanner sc = new Scanner(System.in)) {
-            System.out.println("Enter latency of ADD : ");
-            this.addLatency = sc.nextInt();
-            System.out.println("Enter latency of SUB : ");
-            this.subLatency = sc.nextInt();
-            System.out.println("Enter latency of MUL : ");
-            this.mulLatency = sc.nextInt();
-            System.out.println("Enter latency of DIV : ");
-            this.divLatency = sc.nextInt();
-            System.out.println("Enter latency of LD : ");
-            this.ldLatency = sc.nextInt();
-            System.out.println("Enter latency of SD : ");
-            this.sdLatency = sc.nextInt();
-            System.out.println("Enter latency of BNEZ: ");
-            this.BNEZLatency = sc.nextInt();
-           System.out.println("Enter number of reservation stations of ADD : ");
-            this.numaddBuffers = sc.nextInt();
-            this.addBuffers = new reservationstation[numaddBuffers];
-            for (int i = 0; i < numaddBuffers; i++) {
-                addBuffers[i] = new reservationstation();
-                addBuffers[i].tag = "A" + (i + 1);
+    
+        // Create scanner to read user input
+        Scanner sc = new Scanner(System.in);
+    
+        // Use helper method to read latency values with validation
+        this.addLatency = readLatency(sc, "ADD");
+        this.subLatency = readLatency(sc, "SUB");
+        this.mulLatency = readLatency(sc, "MUL");
+        this.divLatency = readLatency(sc, "DIV");
+        this.ldLatency = readLatency(sc, "LD");
+        this.sdLatency = readLatency(sc, "SD");
+    
+        // Use helper method to read the number of reservation stations with validation
+        this.numaddBuffers = readNumBuffers(sc, "ADD");
+        this.addBuffers = new reservationstation[this.numaddBuffers];
+        initializeReservationStations(this.addBuffers, "A");
+    
+        this.nummulBuffers = readNumBuffers(sc, "MUL");
+        this.mulBuffers = new reservationstation[this.nummulBuffers];
+        initializeReservationStations(this.mulBuffers, "M");
+    
+        this.numLoadBuffers = readNumBuffers(sc, "LD");
+        this.loadBuffers = new loadbuffer[this.numLoadBuffers];
+        initializeLoadStoreBuffers(this.loadBuffers, "L");
+    
+        this.numStoreBuffers = readNumBuffers(sc, "SD");
+        this.storeBuffers = new storebuffer[this.numStoreBuffers];
+        initializeLoadStoreBuffers(this.storeBuffers, "S");
+    
+        // Read and initialize the cache size with validation
+        System.out.println("Enter the size of cache: ");
+        this.cacheSize = sc.nextInt();
+        if (this.cacheSize <= 0) {
+            System.out.println("Invalid cache size. Using default cache size: 128.");
+            this.cacheSize = 128; // Default cache size in case of invalid input
+        }
+        this.cache = new cache(this.cacheSize);
+    
+        // Close the scanner after use
+        sc.close();
+    }
+    
+    // Helper method to read latency values with validation
+    private int readLatency(Scanner sc, String instructionType) {
+        int latency;
+        do {
+            System.out.println("Enter the latency of " + instructionType + " instruction: ");
+            while (!sc.hasNextInt()) {
+                System.out.println("Invalid input. Please enter an integer for the latency of " + instructionType + " instruction.");
+                sc.next(); // Consume the invalid input
             }
-
-            System.out.println("Enter number of reservation stations of MUL: ");
-            this.nummulBuffers = sc.nextInt();
-            this.mulBuffers = new reservationstation[nummulBuffers];
-            for (int i = 0; i < nummulBuffers; i++) {
-                mulBuffers[i] = new reservationstation();
-                mulBuffers[i].tag = "M" + (i + 1);
+            latency = sc.nextInt();
+        } while (latency <= 0); // Ensure positive latency
+        return latency;
+    }
+    
+    // Helper method to read the number of buffers with validation
+    private int readNumBuffers(Scanner sc, String bufferType) {
+        int numBuffers;
+        do {
+            System.out.println("Enter the number of " + bufferType + " reservation stations: ");
+            while (!sc.hasNextInt()) {
+                System.out.println("Invalid input. Please enter an integer for the number of " + bufferType + " reservation stations.");
+                sc.next(); // Consume the invalid input
             }
-
-            System.out.println("Enter number of reservation stations of LD: ");
-            this.numLoadBuffers = sc.nextInt();
-            this.loadBuffers = new loadbuffer[numLoadBuffers];
-            for (int i = 0; i < numLoadBuffers; i++) {
-                loadBuffers[i] = new loadbuffer();
-            }
-
-            System.out.println("Enter number of reservation stations of SD: ");
-            this.numStoreBuffers = sc.nextInt();
-            this.storeBuffers = new storebuffer[numStoreBuffers];
-            for (int i = 0; i < numStoreBuffers; i++) {
-                storeBuffers[i] = new storebuffer();
-            }
-
-            System.out.println("Enter size of cache: ");
-            this.cacheSize = sc.nextInt();
-            this.cache = new cache(cacheSize);
-        } catch (Exception e) {
-            System.out.println("Error processing user input: " + e.getMessage());
+            numBuffers = sc.nextInt();
+        } while (numBuffers <= 0); // Ensure positive buffer count
+        return numBuffers;
+    }
+    
+    // Helper method to initialize reservation stations
+    private void initializeReservationStations(reservationstation[] buffers, String prefix) {
+        for (int i = 0; i < buffers.length; i++) {
+            buffers[i] = new reservationstation();
+            buffers[i].tag = prefix + (i + 1);
         }
     }
-   
+    
+    // Helper method to initialize load/store buffers
+    private void initializeLoadStoreBuffers(loadbuffer[] buffers, String prefix) {
+        for (int i = 0; i < buffers.length; i++) {
+            buffers[i] = new loadbuffer();
+            buffers[i].tag = prefix + (i + 1);
+        }
+    }
+    
+    // Helper method to initialize store buffers
+    private void initializeLoadStoreBuffers(storebuffer[] buffers, String prefix) {
+        for (int i = 0; i < buffers.length; i++) {
+            buffers[i] = new storebuffer();
+            buffers[i].tag = prefix + (i + 1);
+        }
+    }
+    
     public void printTomasuloSections() {
         printSection("Instructions", program);
         printSection("Issued", issued);
@@ -187,39 +227,6 @@ private void printRegisterFile() {
     }
     System.out.println(); // Empty line for better readability
 }
-
-
-private int determineLatency(String operation) {
-    int operationLatency = 1; 
-
-    switch (operation) {
-        case "ADD.D":
-        case "SUB.D":
-            operationLatency = (operation.equals("ADD.D")) ? addLatency : subLatency;
-            break;
-
-        case "MUL.D":
-        case "DIV.D":
-            operationLatency = (operation.equals("MUL.D")) ? mulLatency : divLatency;
-            break;
-
-        case "L.D":
-            operationLatency = ldLatency;
-            break;
-
-        case "S.D":
-            operationLatency = sdLatency;
-            break;
-
-        default:
-            break;
-    }
-
-    System.out.println("Latency for " + operation + ": " + operationLatency);
-    return operationLatency;
-}
-
-
 
 public void issue() {
     if (pc >= program.size()) {
@@ -378,5 +385,565 @@ private int fetchOperandValueOrTag(registerfile.Register reg, boolean isFirst, r
 private int extractRegisterIndex(String operand) {
     return Integer.parseInt(operand.substring(1)); 
 }
+private int determineLatency(String operation) {
+    int operationLatency = 1; 
 
+    switch (operation) {
+        case "ADD.D":
+        case "SUB.D":
+            operationLatency = (operation.equals("ADD.D")) ? addLatency : subLatency;
+            break;
+
+        case "MUL.D":
+        case "DIV.D":
+            operationLatency = (operation.equals("MUL.D")) ? mulLatency : divLatency;
+            break;
+
+        case "L.D":
+            operationLatency = ldLatency;
+            break;
+
+        case "S.D":
+            operationLatency = sdLatency;
+            break;
+
+        default:
+            break;
     }
+
+    System.out.println("Latency for " + operation + ": " + operationLatency);
+    return operationLatency;
+}
+private boolean LoadInstorder(instruction s) {
+    int issue = s.issue;
+    int loadAddress = Integer.parseInt(s.getK());
+
+    for (storebuffer buffer : storeBuffers) {
+        if (buffer.isBusy() && buffer.instruction.issue < issue) {
+    
+            if (buffer.time > 0) {
+                return false; 
+            }
+            if (buffer.address == loadAddress) {
+                return false;
+            }
+        }
+    }
+    return true; 
+}
+private boolean StoreInstorder(instruction s) {
+    int issue = s.issue;
+    int storeAddress = Integer.parseInt(s.getK());  
+    System.out.println("STORE issue is " + issue);
+    
+    for (loadbuffer buffer : loadBuffers) {
+        if (buffer.isBusy() && buffer.instruction.issue < issue) {
+            System.out.println("LOAD buffer issue is " + buffer.instruction.issue);
+
+
+            if (buffer.time > 0) {
+                return false;  
+            }
+
+     
+            if (buffer.address == storeAddress) {
+                System.out.println("STORE and LOAD address conflict detected");
+                return false; 
+            }
+        }
+    }
+
+    return true;  
+}
+private boolean isthebufferempty() {
+ 
+    List<Object> allBuffers = new ArrayList<>();
+    allBuffers.addAll(Arrays.asList(addBuffers));
+    allBuffers.addAll(Arrays.asList(mulBuffers));
+    allBuffers.addAll(Arrays.asList(loadBuffers));
+    allBuffers.addAll(Arrays.asList(storeBuffers));
+
+    for (Object buffer : allBuffers) {
+        if (buffer instanceof reservationstation) {
+            if (!((reservationstation) buffer).isempty()) {
+                return false; // Found a non-empty buffer
+            }
+        } else if (buffer instanceof loadbuffer) {
+            if (!((loadbuffer) buffer).isempty()) {
+                return false;
+            }
+        } else if (buffer instanceof storebuffer) {
+            if (!((storebuffer) buffer).isempty()) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+private void realexecution(reservationstation s, instruction inst) { 
+    if (s.Qj != null || s.Qk != null) {  
+        System.out.println("Operands not ready " + s.opcode);
+        return;
+    }
+    if (s.opcode.equals("ADD.D")) {
+        inst.value = s.Vj + s.Vk;
+    }
+    else if (s.opcode.equals("SUB.D")) {
+        inst.value = s.Vj - s.Vk;
+    }
+    else if (s.opcode.equals("ADDI")) {
+        inst.value = s.Vj + s.Vk;
+    }
+    else if (s.opcode.equals("SUBI")) {
+        inst.value = s.Vj - s.Vk;
+    }
+    else if (s.opcode.equals("DADD")) {
+        inst.value = s.Vj + s.Vk;
+    }
+    else if (s.opcode.equals("DSUB")) {
+        inst.value = s.Vj - s.Vk;
+    }
+    else if (s.opcode.equals("DADDI")) {
+        inst.value = s.Vj + s.Vk;
+    }
+    else if (s.opcode.equals("DSUBI")) {
+        inst.value = s.Vj - s.Vk;
+    }
+    else if (s.opcode.equals("DIV.D")) {
+        if (s.Vj == 0) {
+            System.out.println("Division by zero error in DIV.D operation.");
+            return; 
+        }
+        inst.value = s.Vj / s.Vk;
+    }
+    else if (s.opcode.equals("MUL.D")) {
+        inst.value = s.Vj * s.Vk;
+    }
+    else if (s.opcode.equals("BNEZ")) {
+        if (s.Vj != 0) {
+            isbranchTaken(0);
+            System.out.println("taken");
+            branch = false;
+           
+        } else {
+            System.out.println("taken");
+            branch = false;
+        
+        }
+    } else {
+        System.out.println("Unknown operation: " + s.opcode);
+    }
+}
+private void isbranchTaken(int address) {
+    if (address < 0 || address >= program.size()) {
+        System.out.println("Invalid address. Cannot process branch.");
+        return;
+    }
+    int i = address;
+    boolean branchFound = false;
+    while (i < program.size() && !program.get(i).type.equals("BNEZ")) {
+        System.out.println("Adding instruction " + program.get(i).type);
+
+        instruction inst = program.get(i);
+        instruction newInst;
+        if (inst.type.equals("L.D") || inst.type.equals("S.D")) {
+            newInst = new instruction(inst.type, inst.i, inst.value);
+        } else if (inst.type.equals("ADDI") || inst.type.equals("SUBI") || inst.type.equals("DADDI") || inst.type.equals("DSUBI")) {
+            newInst = new instruction(inst.type, inst.i, inst.j, inst.k);
+        } else if (inst.type.equals("ADD.D") || inst.type.equals("SUB.D") || inst.type.equals("DADD") || inst.type.equals("DSUB")) {
+            newInst = new instruction(inst.type, inst.i, inst.j, inst.k);
+        } else {
+
+            newInst = new instruction(inst.type, inst.i, inst.j, inst.k);
+        }
+
+        program.add(newInst);
+        i++;  
+    }
+    if (i < program.size() && program.get(i).type.equals("BNEZ")) {
+        instruction branch = new instruction(program.get(i).type, program.get(i).i, program.get(i).value);
+        program.add(branch); 
+        System.out.println("Branch added: " + branch.type);
+    }
+    branchFound = true;
+    if (!branchFound) {
+        System.out.println("No branch found ");
+    }
+}
+public void execute() {
+    // Iterate through each buffer array
+    processExecution(addBuffers);
+    processExecution(mulBuffers);
+    processExecution(loadBuffers);
+    processExecution(storeBuffers);
+}
+
+private void processExecution(Object[] buffers) {
+    for (Object buffer : buffers) {
+        if (buffer instanceof reservationstation) {
+            processReservationStation((reservationstation) buffer);
+        } else if (buffer instanceof loadbuffer) {
+            processLoadBuffer((loadbuffer) buffer);
+        } else if (buffer instanceof storebuffer) {
+            processStoreBuffer((storebuffer) buffer);
+        }
+    }
+}
+
+private void processReservationStation(reservationstation buffer) {
+    if (buffer.time == -1) {
+        processInstruction(buffer);
+        buffer.time--;
+        return;
+    }
+
+    if (buffer.busy) {
+        if (buffer.time == 0) {
+            handleExecution(buffer);
+        } else {
+            if (buffer.Qj == null && buffer.Qk == null) {
+                instruction inst = buffer.instruction;
+                buffer.time--;
+                executed.add(inst);
+            }
+        }
+    }
+}
+
+private void processLoadBuffer(loadbuffer buffer) {
+    if (!buffer.busy) return;
+
+    if (buffer.time == -1) {
+        processInstruction(buffer);
+        buffer.time--;
+        return;
+    }
+
+    if (buffer.time == 0) {
+        handleLoadExecution(buffer);
+    } else if (shouldExecuteLoad(buffer)) {
+        handleLoadExecution(buffer);
+    } else {
+        System.out.println("Waiting for the correct value for load instruction at address " + buffer.address);
+    }
+}
+
+private void processStoreBuffer(storebuffer buffer) {
+    if (!buffer.busy) return;
+
+    if (buffer.time == -1) {
+        buffer.time--;
+        return;
+    }
+
+    if (buffer.time == 0) {
+        handleStoreExecution(buffer);
+    } else if (shouldExecuteStore(buffer)) {
+        handleStoreExecution(buffer);
+    } else {
+        System.out.println("Waiting for the correct value for store instruction at address " + buffer.address);
+    }
+}
+
+private void handleExecution(reservationstation buffer) {
+    instruction inst = buffer.instruction;
+    if (inst.tag.equals(buffer.tag)) {
+        inst.executionComplete = cycle;
+        inst.writeResult = cycle + 1;
+        executed.add(inst);
+        realexecution(buffer, inst);
+        buffer.time--;
+    }
+}
+
+private void handleLoadExecution(loadbuffer buffer) {
+    instruction inst = buffer.instruction;
+    if (inst.tag.equals(buffer.tag)) {
+        inst.executionComplete = cycle;
+        inst.writeResult = cycle + 1;
+        inst.value = cache.read(buffer.address);
+        buffer.time--;
+    }
+}
+
+private boolean shouldExecuteLoad(loadbuffer buffer) {
+    return (cache.isBusy(buffer.address) && cache.getCell(buffer.address).tag.equals(buffer.tag)) ||
+           (!cache.isBusy(buffer.address) && LoadInstorder(buffer.instruction));
+}
+
+private void handleStoreExecution(storebuffer buffer) {
+    instruction inst = buffer.instruction;
+    if (inst.tag.equals(buffer.tag)) {
+        inst.executionComplete = cycle;
+        inst.writeResult = cycle + 1;
+        cache.write(buffer.address, buffer.V);
+        toBeWritten.add(inst);
+        buffer.time--;
+    }
+}
+
+private boolean shouldExecuteStore(storebuffer buffer) {
+    return buffer.Q == null &&
+           ((cache.isBusy(buffer.address) && cache.getCell(buffer.address).tag.equals(buffer.tag)) ||
+            (!cache.isBusy(buffer.address) && StoreInstorder(buffer.instruction)));
+}
+
+private void processInstruction(Object buffer) {
+    if (buffer instanceof reservationstation) {
+        instruction inst = ((reservationstation) buffer).instruction;
+        toBeWritten.add(inst);
+    } else if (buffer instanceof loadbuffer) {
+        instruction inst = ((loadbuffer) buffer).instruction;
+        toBeWritten.add(inst);
+    } else if (buffer instanceof storebuffer) {
+        instruction inst = ((storebuffer) buffer).instruction;
+        toBeWritten.add(inst);
+    }
+}
+
+public void performWriteBack() {
+    ArrayList<instruction> processedInstructions = new ArrayList<>();
+    int earliestIssueCycle = findEarliestIssueCycle(toBeWritten);
+    
+    // Process instructions that match the earliest issue cycle and current cycle
+    for (instruction currentInstruction : toBeWritten) {
+        if (currentInstruction.writeResult == cycle && currentInstruction.issue == earliestIssueCycle) {
+            processedInstructions.add(currentInstruction);
+            toBeWritten.remove(currentInstruction);
+            break;
+        }
+    }
+
+    // Update writeResult for remaining instructions
+    updateWriteResults(toBeWritten);
+
+    // Handle the write-back for each reservation station type (ADD, MUL, LOAD, STORE)
+    processReservationStations(addBuffers, processedInstructions);
+    processReservationStations(mulBuffers, processedInstructions);
+    processLoadBuffers(loadBuffers, processedInstructions);
+    processStoreBuffers(storeBuffers, processedInstructions);
+
+    // Clear the processed instructions list after write-back is complete
+    processedInstructions.clear();
+}
+
+private int findEarliestIssueCycle(ArrayList<instruction> instructions) {
+    int earliestCycle = Integer.MAX_VALUE;
+    for (instruction inst : instructions) {
+        if (inst.issue < earliestCycle) {
+            earliestCycle = inst.issue;
+        }
+    }
+    return earliestCycle;
+}
+
+private void updateWriteResults(ArrayList<instruction> instructions) {
+    for (instruction inst : instructions) {
+        inst.writeResult = cycle + 1;
+    }
+}
+
+private void processReservationStations(reservationstation[] buffers, ArrayList<instruction> processedInstructions) {
+    for (reservationstation buffer : buffers) {
+        handleBufferWriteBack(buffer, processedInstructions);
+    }
+}
+
+private void processLoadBuffers(loadbuffer[] buffers, ArrayList<instruction> processedInstructions) {
+    for (loadbuffer buffer : buffers) {
+        handleBufferWriteBack(buffer, processedInstructions);
+    }
+}
+
+private void processStoreBuffers(storebuffer[] buffers, ArrayList<instruction> processedInstructions) {
+    for (storebuffer buffer : buffers) {
+        handleBufferWriteBack(buffer, processedInstructions);
+    }
+}
+
+private void handleBufferWriteBack(Object buffer, ArrayList<instruction> processedInstructions) {
+    if (buffer instanceof reservationstation) {
+        reservationstation resBuffer = (reservationstation) buffer;
+        handleReservationStationWriteBack(resBuffer, processedInstructions);
+    } else if (buffer instanceof loadbuffer) {
+        loadbuffer loadBuf = (loadbuffer) buffer;
+        handleLoadBufferWriteBack(loadBuf);
+    } else if (buffer instanceof storebuffer) {
+        storebuffer storeBuf = (storebuffer) buffer;
+        handleStoreBufferWriteBack(storeBuf, processedInstructions);
+    }
+}
+
+private void handleReservationStationWriteBack(reservationstation buffer, ArrayList<instruction> processedInstructions) {
+    if (buffer.time == -2) {
+        buffer.deleteStation();
+    } else if (buffer.time == -1) {
+        updateRegisterFromBuffer(buffer);
+    }
+    processBufferOperands(buffer, processedInstructions);
+}
+
+private void handleLoadBufferWriteBack(loadbuffer buffer) {
+    if (buffer.time == -2) {
+        buffer.deleteBuffer();
+    } else if (buffer.time == -1) {
+        updateRegisterFromBuffer(buffer);
+        cache.makeNotBusy(buffer.address);
+    }
+}
+
+private void handleStoreBufferWriteBack(storebuffer buffer, ArrayList<instruction> processedInstructions) {
+    if (buffer.time == -2) {
+        buffer.deleteBuffer();
+    } else if (buffer.time == -1) {
+        cache.makeNotBusy(buffer.address);
+    }
+    processStoreBufferOperands(buffer, processedInstructions);
+}
+
+private void updateRegisterFromBuffer(Object buffer) {
+    if (buffer instanceof reservationstation) {
+        reservationstation resBuffer = (reservationstation) buffer;
+        updateRegisterFromInstruction(resBuffer.instruction, resBuffer.tag);
+    } else if (buffer instanceof loadbuffer) {
+        loadbuffer loadBuf = (loadbuffer) buffer;
+        updateRegisterFromInstruction(loadBuf.instruction, loadBuf.tag);
+    }
+}
+
+private void updateRegisterFromInstruction(instruction inst, String tag) {
+    int registerIndex = Integer.parseInt(inst.i.substring(1));
+    if (registerFile.registers[registerIndex].Qi.equals(tag)) {
+        registerFile.registers[registerIndex].Qi = inst.value + "";
+        registerFile.registers[registerIndex].busy = false;
+    }
+}
+
+private void processBufferOperands(reservationstation buffer, ArrayList<instruction> processedInstructions) {
+    if (buffer.Qj != null) {
+        for (instruction inst : processedInstructions) {
+            if (inst.tag.equals(buffer.Qj)) {
+                buffer.Vj = inst.value;
+                buffer.Qj = null;
+                if (buffer.Qk == null) {
+                    buffer.time = determineLatency(buffer.opcode) - 1;
+                }
+            }
+        }
+    }
+    if (buffer.Qk != null) {
+        for (instruction inst : processedInstructions) {
+            if (inst.tag.equals(buffer.Qk)) {
+                buffer.Vk = inst.value;
+                buffer.Qk = null;
+                if (buffer.Qj == null) {
+                    buffer.time = determineLatency(buffer.opcode) - 1;
+                }
+            }
+        }
+    }
+}
+
+private void processStoreBufferOperands(storebuffer buffer, ArrayList<instruction> processedInstructions) {
+    if (buffer.Q != null) {
+        for (instruction inst : processedInstructions) {
+            if (inst.tag.equals(buffer.Q)) {
+                buffer.V = inst.value;
+                buffer.Q = null;
+                buffer.time = sdLatency;
+            }
+        }
+    }
+}
+
+
+public void executeSimulation() {
+    int currentCycle = 1;  // Initialize cycle count
+    System.out.println("Simulation Starts:");
+
+    // Keep running the simulation while instructions are in progress
+    while (true) {
+        // Print current cycle information
+        System.out.println("Cycle: " + currentCycle);
+        System.out.println("Program Counter (PC): " + pc);
+        
+        // Perform each step of the Tomasulo algorithm
+        issueInstructions();
+        executeInstructions();
+        handleWriteBack();
+        displayTomasuloStatus();
+
+        // Clear the executed and issued instructions for the next cycle
+        clearIssuedAndExecutedInstructions();
+
+        // Check if the program has finished execution
+        if (isProgramFinished()) {
+            break;
+        }
+
+        currentCycle++;  // Increment cycle for the next iteration
+    }
+
+    // Finalizing the simulation and displaying results
+    System.out.println("--------------------------------------------------");
+    int totalCycles = calculateTotalCycles();
+    System.out.println("The program finished execution in " + totalCycles + " cycles.");
+
+    // Print detailed information about each instruction's lifecycle
+    printInstructionLifecycleDetails();
+}
+
+private void issueInstructions() {
+    issue();
+}
+
+private void executeInstructions() {
+    execute();
+}
+
+private void handleWriteBack() {
+    performWriteBack();
+}
+
+private void displayTomasuloStatus() {
+    printTomasuloSections();
+}
+
+private void clearIssuedAndExecutedInstructions() {
+    executed.clear();
+    issued.clear();
+}
+
+private boolean isProgramFinished() {
+    try {
+        program.get(pc);  // Try to access the next instruction
+    } catch (Exception e) {
+        // If there's an exception, it means we've run out of instructions in the program
+        return areAllBuffersEmpty();  // Check if all reservation stations and buffers are empty
+    }
+    return false;
+}
+
+private boolean areAllBuffersEmpty() {
+    return isthebufferempty();  // Check if buffers are empty
+}
+
+private int calculateTotalCycles() {
+    int maxCycles = 0;
+    for (instruction inst : program) {
+        if (inst.writeResult > maxCycles) {
+            maxCycles = inst.writeResult;
+        }
+    }
+    return maxCycles;
+}
+
+private void printInstructionLifecycleDetails() {
+    for (instruction inst : program) {
+        System.out.println(inst.type + " The instruction was issued in cycle " 
+                           + inst.issue + ", executed in cycle " + inst.executionComplete 
+                           + ", and wrote back in cycle " + inst.writeResult);
+    }
+}
+
+}

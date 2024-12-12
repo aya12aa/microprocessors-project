@@ -7,6 +7,7 @@ public class instruction {
     public int executionComplete;
     public int writeResult;
     public String tag;
+    public int value;
 
     // Updated constructors
     public instruction(String type, String i, String j, String k) {

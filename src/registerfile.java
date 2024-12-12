@@ -1,8 +1,8 @@
 public class registerfile {
     public static class Register {
-        private String name; 
-        private String Qi;
-        private boolean busy;
+        public String name; 
+        public String Qi;
+        public boolean busy;
 
         // Constructor 
         public Register(int index) {
